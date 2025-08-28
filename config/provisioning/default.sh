@@ -150,7 +150,7 @@ function provisioning_start() {
   "output_dir": "/workspace/SARAHJACKSON/training_data/model",
   "output_name": "SARAHJACKSON_LORA",
   "persistent_data_loader_workers": false,
-  "pretrained_model_name_or_path": "/opt/kohya_ss/models/sd_xl_base_1.0.safetensors",
+  "pretrained_model_name_or_path": "/workspace/models/sd_xl_base_1.0.safetensors",
   "prior_loss_weight": 1,
   "random_crop": false,
   "rank_dropout": 0,
