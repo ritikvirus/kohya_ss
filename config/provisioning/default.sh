@@ -4,13 +4,15 @@
 # https://raw.githubusercontent.com/ai-dock/kohya_ss/main/config/provisioning/default.sh
 
 DISK_GB_REQUIRED=30
-
 PIP_PACKAGES=( )
 
-# Your JSON uses SDXL base @ /opt/kohya_ss/models/sd_xl_base_1.0.safetensors
+# SDXL base checkpoint (will download once, then persist in /workspace)
 CHECKPOINT_MODELS=(
   "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
 )
+
+# no-op stub (avoids 'command not found' if not defined in base)
+function provisioning_get_mamba_packages() { :; }
 
 ### DO NOT EDIT BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING ###
 
@@ -29,16 +31,18 @@ function provisioning_start() {
   LOG_DIR="${TRAIN_ROOT}/log"
   mkdir -p "${IMG_DIR}" "${MODEL_DIR}" "${LOG_DIR}"
 
-  # Kohya install paths (inside container)
+  # Persist models on RunPod volume
   KOHYA_ROOT="/opt/kohya_ss"
-  KOHYA_MODELS_DIR="${KOHYA_ROOT}/models"
+  KOHYA_MODELS_DIR="/workspace/models"
   mkdir -p "${KOHYA_MODELS_DIR}"
+  # Symlink so anything referencing /opt/kohya_ss/models still sees the same files
+  ln -sfn "${KOHYA_MODELS_DIR}" "${KOHYA_ROOT}/models"
 
   provisioning_print_header
   provisioning_get_mamba_packages
   provisioning_get_pip_packages
 
-  # Download SDXL base where your JSON expects it
+  # Download SDXL base to the persistent models dir
   provisioning_get_models "${KOHYA_MODELS_DIR}" "${CHECKPOINT_MODELS[@]}"
 
   # --- Write your LoRA JSON so it's ready to Load from GUI ---
@@ -205,16 +209,19 @@ function provisioning_start() {
 }
 JSON
 
-  # Optional: put a helper symlink for easy browsing
+  # Helper symlink for browsing config in the repo path
   mkdir -p "${KOHYA_ROOT}/configs/lora"
   ln -sf "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" "${KOHYA_ROOT}/configs/lora/SARAHJACKSON_LORA.json"
 
-  # Also drop a config.toml so default folders prefill across the GUI
+  # Default GUI paths via TOML
   cat > "/opt/kohya_ss/config.toml" <<'TOML'
 [folders]
 output_dir = "/workspace/SARAHJACKSON/training_data/model"
 reg_data_dir = ""
 logging_dir = "/workspace/SARAHJACKSON/training_data/log"
+
+[model]
+models_dir = "/workspace/models"
 
 [configuration]
 config_dir = "/opt/kohya_ss/configs"
