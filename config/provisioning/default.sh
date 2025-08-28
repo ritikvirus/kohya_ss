@@ -1,93 +1,277 @@
 #!/bin/bash
 # This file will be sourced in init.sh
 # Namespace functions with provisioning_
-
 # https://raw.githubusercontent.com/ai-dock/kohya_ss/main/config/provisioning/default.sh
 
-### Edit the following arrays to suit your workflow - values must be quoted and separated by newlines or spaces.
-
 DISK_GB_REQUIRED=30
-  
-PIP_PACKAGES=(
-    #"package==version"
-  )
 
+PIP_PACKAGES=( )
+
+# Your JSON uses SDXL base @ /opt/kohya_ss/models/sd_xl_base_1.0.safetensors
 CHECKPOINT_MODELS=(
-    "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt"
-    #"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
-    #"https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors"
+  "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
 )
-
 
 ### DO NOT EDIT BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING ###
 
 function provisioning_start() {
-    source /opt/ai-dock/etc/environment.sh
-    source /opt/ai-dock/bin/venv-set.sh kohya
-    
-    DISK_GB_AVAILABLE=$(($(df --output=avail -m "${WORKSPACE}" | tail -n1) / 1000))
-    DISK_GB_USED=$(($(df --output=used -m "${WORKSPACE}" | tail -n1) / 1000))
-    DISK_GB_ALLOCATED=$(($DISK_GB_AVAILABLE + $DISK_GB_USED))
-    provisioning_print_header
-    provisioning_get_mamba_packages
-    provisioning_get_pip_packages
-    provisioning_get_models \
-        "${WORKSPACE}/storage/stable_diffusion/models/ckpt" \
-        "${CHECKPOINT_MODELS[@]}"
-     
-    provisioning_print_end
+  source /opt/ai-dock/etc/environment.sh
+  source /opt/ai-dock/bin/venv-set.sh kohya
+
+  DISK_GB_AVAILABLE=$(($(df --output=avail -m "${WORKSPACE}" | tail -n1) / 1000))
+  DISK_GB_USED=$(($(df --output=used -m "${WORKSPACE}" | tail -n1) / 1000))
+  DISK_GB_ALLOCATED=$(($DISK_GB_AVAILABLE + $DISK_GB_USED))
+
+  # --- Paths you want pre-created ---
+  TRAIN_ROOT="${WORKSPACE}/SARAHJACKSON/training_data"
+  IMG_DIR="${TRAIN_ROOT}/img"
+  MODEL_DIR="${TRAIN_ROOT}/model"
+  LOG_DIR="${TRAIN_ROOT}/log"
+  mkdir -p "${IMG_DIR}" "${MODEL_DIR}" "${LOG_DIR}"
+
+  # Kohya install paths (inside container)
+  KOHYA_ROOT="/opt/kohya_ss"
+  KOHYA_MODELS_DIR="${KOHYA_ROOT}/models"
+  mkdir -p "${KOHYA_MODELS_DIR}"
+
+  provisioning_print_header
+  provisioning_get_mamba_packages
+  provisioning_get_pip_packages
+
+  # Download SDXL base where your JSON expects it
+  provisioning_get_models "${KOHYA_MODELS_DIR}" "${CHECKPOINT_MODELS[@]}"
+
+  # --- Write your LoRA JSON so it's ready to Load from GUI ---
+  cat > "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" <<'JSON'
+{
+  "LoRA_type": "Standard",
+  "LyCORIS_preset": "full",
+  "adaptive_noise_scale": 0,
+  "additional_parameters": "",
+  "async_upload": false,
+  "block_alphas": "",
+  "block_dims": "",
+  "block_lr_zero_threshold": "",
+  "bucket_no_upscale": false,
+  "bucket_reso_steps": 64,
+  "bypass_mode": false,
+  "cache_latents": true,
+  "cache_latents_to_disk": true,
+  "caption_dropout_every_n_epochs": 0,
+  "caption_dropout_rate": 0.05,
+  "caption_extension": ".txt",
+  "clip_skip": 1,
+  "color_aug": false,
+  "constrain": 0,
+  "conv_alpha": 1,
+  "conv_block_alphas": "",
+  "conv_block_dims": "",
+  "conv_dim": 1,
+  "dataset_config": "",
+  "debiased_estimation_loss": false,
+  "decompose_both": false,
+  "dim_from_weights": false,
+  "dora_wd": false,
+  "down_lr_weight": "",
+  "dynamo_backend": "no",
+  "dynamo_mode": "default",
+  "dynamo_use_dynamic": false,
+  "dynamo_use_fullgraph": false,
+  "enable_bucket": true,
+  "epoch": 10,
+  "extra_accelerate_launch_args": "",
+  "factor": -1,
+  "flip_aug": false,
+  "fp8_base": false,
+  "full_bf16": false,
+  "full_fp16": false,
+  "gpu_ids": "",
+  "gradient_accumulation_steps": 1,
+  "gradient_checkpointing": true,
+  "huber_c": 0.1,
+  "huber_schedule": "snr",
+  "huggingface_path_in_repo": "",
+  "huggingface_repo_id": "",
+  "huggingface_repo_type": "",
+  "huggingface_repo_visibility": "",
+  "huggingface_token": "",
+  "ip_noise_gamma": 0,
+  "ip_noise_gamma_random_strength": false,
+  "keep_tokens": 0,
+  "learning_rate": 4e-05,
+  "log_tracker_config": "",
+  "log_tracker_name": "",
+  "log_with": "",
+  "logging_dir": "/workspace/SARAHJACKSON/training_data/log",
+  "loss_type": "l2",
+  "lr_scheduler": "constant",
+  "lr_scheduler_args": "",
+  "lr_scheduler_num_cycles": 1,
+  "lr_scheduler_power": 1,
+  "lr_warmup": 0,
+  "main_process_port": 0,
+  "masked_loss": false,
+  "max_bucket_reso": 2048,
+  "max_data_loader_n_workers": 0,
+  "max_grad_norm": 1,
+  "max_resolution": "1024,1024",
+  "max_timestep": 1000,
+  "max_token_length": 75,
+  "max_train_epochs": 0,
+  "max_train_steps": 0,
+  "mem_eff_attn": false,
+  "metadata_author": "",
+  "metadata_description": "",
+  "metadata_license": "",
+  "metadata_tags": "",
+  "metadata_title": "",
+  "mid_lr_weight": "",
+  "min_bucket_reso": 256,
+  "min_snr_gamma": 5,
+  "min_timestep": 0,
+  "mixed_precision": "fp16",
+  "model_list": "custom",
+  "module_dropout": 0,
+  "multi_gpu": false,
+  "multires_noise_discount": 0,
+  "multires_noise_iterations": 0,
+  "network_alpha": 1,
+  "network_dim": 256,
+  "network_dropout": 0,
+  "network_weights": "",
+  "noise_offset": 0,
+  "noise_offset_random_strength": false,
+  "noise_offset_type": "Original",
+  "num_cpu_threads_per_process": 2,
+  "num_machines": 1,
+  "num_processes": 1,
+  "optimizer": "Adafactor",
+  "optimizer_args": "scale_parameter=False relative_step=False warmup_init=False",
+  "output_dir": "/workspace/SARAHJACKSON/training_data/model",
+  "output_name": "SARAHJACKSON_LORA",
+  "persistent_data_loader_workers": false,
+  "pretrained_model_name_or_path": "/opt/kohya_ss/models/sd_xl_base_1.0.safetensors",
+  "prior_loss_weight": 1,
+  "random_crop": false,
+  "rank_dropout": 0,
+  "rank_dropout_scale": false,
+  "reg_data_dir": "",
+  "rescaled": false,
+  "resume": "",
+  "resume_from_huggingface": "",
+  "sample_every_n_epochs": 0,
+  "sample_every_n_steps": 0,
+  "sample_prompts": "",
+  "sample_sampler": "euler_a",
+  "save_as_bool": false,
+  "save_every_n_epochs": 1,
+  "save_every_n_steps": 0,
+  "save_last_n_steps": 0,
+  "save_last_n_steps_state": 0,
+  "save_model_as": "safetensors",
+  "save_precision": "bf16",
+  "save_state": false,
+  "save_state_on_train_end": false,
+  "save_state_to_huggingface": false,
+  "scale_v_pred_loss_like_noise_pred": false,
+  "scale_weight_norms": 0,
+  "sdxl": true,
+  "sdxl_cache_text_encoder_outputs": false,
+  "sdxl_no_half_vae": true,
+  "seed": 0,
+  "shuffle_caption": false,
+  "stop_text_encoder_training": 0,
+  "text_encoder_lr": 4e-05,
+  "train_batch_size": 1,
+  "train_data_dir": "/workspace/SARAHJACKSON/training_data/img",
+  "train_norm": false,
+  "train_on_input": true,
+  "training_comment": "",
+  "unet_lr": 4e-05,
+  "unit": 1,
+  "up_lr_weight": "",
+  "use_cp": false,
+  "use_scalar": false,
+  "use_tucker": false,
+  "v2": false,
+  "v_parameterization": false,
+  "v_pred_like_loss": 0,
+  "vae": "",
+  "vae_batch_size": 0,
+  "wandb_api_key": "",
+  "wandb_run_name": "",
+  "weighted_captions": false,
+  "xformers": "xformers"
+}
+JSON
+
+  # Optional: put a helper symlink for easy browsing
+  mkdir -p "${KOHYA_ROOT}/configs/lora"
+  ln -sf "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" "${KOHYA_ROOT}/configs/lora/SARAHJACKSON_LORA.json"
+
+  # Also drop a config.toml so default folders prefill across the GUI
+  cat > "/opt/kohya_ss/config.toml" <<'TOML'
+[folders]
+output_dir = "/workspace/SARAHJACKSON/training_data/model"
+reg_data_dir = ""
+logging_dir = "/workspace/SARAHJACKSON/training_data/log"
+
+[configuration]
+config_dir = "/opt/kohya_ss/configs"
+TOML
+
+  provisioning_print_end
 }
 
 function provisioning_get_pip_packages() {
-    if [[ -n $PIP_PACKAGES ]]; then
-        "$KOHYA_VENV_PIP" install --no-cache-dir ${PIP_PACKAGES[@]}
-    fi
+  if [[ -n $PIP_PACKAGES ]]; then
+    "$KOHYA_VENV_PIP" install --no-cache-dir ${PIP_PACKAGES[@]}
+  fi
 }
 
 function provisioning_get_models() {
-    if [[ -z $2 ]]; then return 1; fi
-    dir="$1"
-    mkdir -p "$dir"
-    shift
-    if [[ $DISK_GB_ALLOCATED -ge $DISK_GB_REQUIRED ]]; then
-        arr=("$@")
-    else
-        printf "WARNING: Low disk space allocation - Only the first model will be downloaded!\n"
-        arr=("$1")
-    fi
-    
-    printf "Downloading %s model(s) to %s...\n" "${#arr[@]}" "$dir"
-    for url in "${arr[@]}"; do
-        printf "Downloading: %s\n" "${url}"
-        provisioning_download "${url}" "${dir}"
-        printf "\n"
-    done
+  if [[ -z $2 ]]; then return 1; fi
+  dir="$1"
+  mkdir -p "$dir"
+  shift
+  if [[ $DISK_GB_ALLOCATED -ge $DISK_GB_REQUIRED ]]; then
+    arr=("$@")
+  else
+    printf "WARNING: Low disk space allocation - Only the first model will be downloaded!\n"
+    arr=("$1")
+  fi
+
+  printf "Downloading %s model(s) to %s...\n" "${#arr[@]}" "$dir"
+  for url in "${arr[@]}"; do
+    printf "Downloading: %s\n" "${url}"
+    provisioning_download "${url}" "${dir}"
+    printf "\n"
+  done
 }
 
 function provisioning_print_header() {
-    printf "\n##############################################\n#                                            #\n#          Provisioning container            #\n#                                            #\n#         This will take some time           #\n#                                            #\n# Your container will be ready on completion #\n#                                            #\n##############################################\n\n"
-    if [[ $DISK_GB_ALLOCATED -lt $DISK_GB_REQUIRED ]]; then
-        printf "WARNING: Your allocated disk size (%sGB) is below the recommended %sGB - Some models will not be downloaded\n" "$DISK_GB_ALLOCATED" "$DISK_GB_REQUIRED"
-    fi
+  printf "\n##############################################\n#          Provisioning container            #\n##############################################\n\n"
+  if [[ $DISK_GB_ALLOCATED -lt $DISK_GB_REQUIRED ]]; then
+    printf "WARNING: Your allocated disk size (%sGB) is below the recommended %sGB\n" "$DISK_GB_ALLOCATED" "$DISK_GB_REQUIRED"
+  fi
 }
 
 function provisioning_print_end() {
-    printf "\nProvisioning complete:  Web UI will start now\n\n"
+  printf "\nProvisioning complete:  Web UI will start now\n\n"
 }
 
 # Download from $1 URL to $2 file path
 function provisioning_download() {
-    if [[ -n $HF_TOKEN && $1 =~ ^https://([a-zA-Z0-9_-]+\.)?huggingface\.co(/|$|\?) ]]; then
-        auth_token="$HF_TOKEN"
-    elif 
-        [[ -n $CIVITAI_TOKEN && $1 =~ ^https://([a-zA-Z0-9_-]+\.)?civitai\.com(/|$|\?) ]]; then
-        auth_token="$CIVITAI_TOKEN"
-    fi
-    if [[ -n $auth_token ]];then
-        wget --header="Authorization: Bearer $auth_token" -qnc --content-disposition --show-progress -e dotbytes="${3:-4M}" -P "$2" "$1"
-    else
-        wget -qnc --content-disposition --show-progress -e dotbytes="${3:-4M}" -P "$2" "$1"
-    fi
+  if [[ -n $HF_TOKEN && $1 =~ ^https://([a-zA-Z0-9_-]+\.)?huggingface\.co(/|$|\?) ]]; then
+    auth_token="$HF_TOKEN"
+  elif [[ -n $CIVITAI_TOKEN && $1 =~ ^https://([a-zA-Z0-9_-]+\.)?civitai\.com(/|$|\?) ]]; then
+    auth_token="$CIVITAI_TOKEN"
+  fi
+  if [[ -n $auth_token ]]; then
+    wget --header="Authorization: Bearer $auth_token" -qnc --content-disposition --show-progress -e dotbytes="${3:-4M}" -P "$2" "$1"
+  else
+    wget -qnc --content-disposition --show-progress -e dotbytes="${3:-4M}" -P "$2" "$1"
+  fi
 }
 
 provisioning_start
