@@ -6,7 +6,7 @@
 DISK_GB_REQUIRED=30
 PIP_PACKAGES=( )
 
-# SDXL base checkpoint (will download once, then persist in /workspace)
+# SDXL base checkpoint (download once, persist in /workspace)
 CHECKPOINT_MODELS=(
   "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
 )
@@ -24,7 +24,7 @@ function provisioning_start() {
   DISK_GB_USED=$(($(df --output=used -m "${WORKSPACE}" | tail -n1) / 1000))
   DISK_GB_ALLOCATED=$(($DISK_GB_AVAILABLE + $DISK_GB_USED))
 
-  # --- Paths you want pre-created ---
+  # --- Your training dirs (persist under /workspace) ---
   TRAIN_ROOT="${WORKSPACE}/SARAHJACKSON/training_data"
   IMG_DIR="${TRAIN_ROOT}/img"
   MODEL_DIR="${TRAIN_ROOT}/model"
@@ -35,17 +35,17 @@ function provisioning_start() {
   KOHYA_ROOT="/opt/kohya_ss"
   KOHYA_MODELS_DIR="/workspace/models"
   mkdir -p "${KOHYA_MODELS_DIR}"
-  # Symlink so anything referencing /opt/kohya_ss/models still sees the same files
+  # Symlink so /opt/kohya_ss/models still works if referenced anywhere
   ln -sfn "${KOHYA_MODELS_DIR}" "${KOHYA_ROOT}/models"
 
   provisioning_print_header
   provisioning_get_mamba_packages
   provisioning_get_pip_packages
 
-  # Download SDXL base to the persistent models dir
+  # Download SDXL base to persistent models dir
   provisioning_get_models "${KOHYA_MODELS_DIR}" "${CHECKPOINT_MODELS[@]}"
 
-  # --- Write your LoRA JSON so it's ready to Load from GUI ---
+  # --- Write your LoRA JSON (ready to Load from GUI) ---
   cat > "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" <<'JSON'
 {
   "LoRA_type": "Standard",
@@ -209,7 +209,7 @@ function provisioning_start() {
 }
 JSON
 
-  # Helper symlink for browsing config in the repo path
+  # Helper symlink for browsing in /opt path
   mkdir -p "${KOHYA_ROOT}/configs/lora"
   ln -sf "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" "${KOHYA_ROOT}/configs/lora/SARAHJACKSON_LORA.json"
 
@@ -247,7 +247,6 @@ function provisioning_get_models() {
     printf "WARNING: Low disk space allocation - Only the first model will be downloaded!\n"
     arr=("$1")
   fi
-
   printf "Downloading %s model(s) to %s...\n" "${#arr[@]}" "$dir"
   for url in "${arr[@]}"; do
     printf "Downloading: %s\n" "${url}"
