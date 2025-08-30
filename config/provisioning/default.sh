@@ -31,22 +31,22 @@ function provisioning_start() {
   LOG_DIR="${TRAIN_ROOT}/log"
   mkdir -p "${IMG_DIR}" "${MODEL_DIR}" "${LOG_DIR}"
 
-  # Persist models on RunPod volume
+  # Persist models on RunPod volume at exact path expected by your JSON
   KOHYA_ROOT="/opt/kohya_ss"
-  KOHYA_MODELS_DIR="/workspace/models"
+  KOHYA_MODELS_DIR="/workspace/kohya_ss/models"
   mkdir -p "${KOHYA_MODELS_DIR}"
-  # Symlink so /opt/kohya_ss/models still works if referenced anywhere
+  # Symlink so anything referencing /opt/kohya_ss/models still works
   ln -sfn "${KOHYA_MODELS_DIR}" "${KOHYA_ROOT}/models"
 
   provisioning_print_header
   provisioning_get_mamba_packages
   provisioning_get_pip_packages
 
-  # Download SDXL base to persistent models dir
+  # Download SDXL base to the persistent models dir (exact filename kept)
   provisioning_get_models "${KOHYA_MODELS_DIR}" "${CHECKPOINT_MODELS[@]}"
 
-  # --- Write your LoRA JSON (ready to Load from GUI) ---
-  cat > "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" <<'JSON'
+  # --- Write your LoRA JSON (renamed as requested) ---
+  cat > "${TRAIN_ROOT}/kohya_consistent_character_cloning_256NWR.json" <<'JSON'
 {
   "LoRA_type": "Standard",
   "LyCORIS_preset": "full",
@@ -154,7 +154,7 @@ function provisioning_start() {
   "output_dir": "/workspace/SARAHJACKSON/training_data/model",
   "output_name": "SARAHJACKSON_LORA",
   "persistent_data_loader_workers": false,
-  "pretrained_model_name_or_path": "/workspace/models/sd_xl_base_1.0.safetensors",
+  "pretrained_model_name_or_path": "/workspace/kohya_ss/models/sd_xl_base_1.0.safetensors",
   "prior_loss_weight": 1,
   "random_crop": false,
   "rank_dropout": 0,
@@ -211,9 +211,10 @@ JSON
 
   # Helper symlink for browsing in /opt path
   mkdir -p "${KOHYA_ROOT}/configs/lora"
-  ln -sf "${TRAIN_ROOT}/SARAHJACKSON_LORA.json" "${KOHYA_ROOT}/configs/lora/SARAHJACKSON_LORA.json"
+  ln -sf "${TRAIN_ROOT}/kohya_consistent_character_cloning_256NWR.json" \
+         "${KOHYA_ROOT}/configs/lora/kohya_consistent_character_cloning_256NWR.json"
 
-  # Default GUI paths via TOML
+  # Default GUI paths via TOML (models dir points to /workspace/kohya_ss/models)
   cat > "/opt/kohya_ss/config.toml" <<'TOML'
 [folders]
 output_dir = "/workspace/SARAHJACKSON/training_data/model"
@@ -221,7 +222,7 @@ reg_data_dir = ""
 logging_dir = "/workspace/SARAHJACKSON/training_data/log"
 
 [model]
-models_dir = "/workspace/models"
+models_dir = "/workspace/kohya_ss/models"
 
 [configuration]
 config_dir = "/opt/kohya_ss/configs"
@@ -247,6 +248,7 @@ function provisioning_get_models() {
     printf "WARNING: Low disk space allocation - Only the first model will be downloaded!\n"
     arr=("$1")
   fi
+
   printf "Downloading %s model(s) to %s...\n" "${#arr[@]}" "$dir"
   for url in "${arr[@]}"; do
     printf "Downloading: %s\n" "${url}"
